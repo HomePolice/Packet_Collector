@@ -91,6 +91,8 @@ static pcap_handler lookup_printer(int type)
 	perror("unknown data link type");
 }
 
+/* Deprecated
+// This function is for capturing wifi signal of connected devices. 
 void *signal_func(void* data)
 {
 	time_t start, end;
@@ -126,7 +128,9 @@ void *signal_func(void* data)
 		}
 	}
 }
+*/
 
+// 수집 타이머 함수 - 정해진 시간마다 작동하며 기록된 로그를 취합하여 s3로 전송합니다.
 void *timer_func(void* data)
 {
 	time_t     now;
@@ -134,26 +138,35 @@ void *timer_func(void* data)
 	time_t start, end;
 	char prefix[200] = "./s3_upload ";
 
+	// 시간을 잽시다.
 	start = time(0);
 
+	// Main loop
 	while(1)
 	{
+		// 시간을 잽시다.
 		end = time(0);
+		// 타이머 작동
 		if(end - start > 20)
 		{
 			printf("Timer Activated\n");
+			// 동기화
 			pthread_mutex_lock(&a_mutex);
+			// 파일을 마무리합니다.
 			fprintf(temp, "]");
 			fclose(temp);
 
+			// s3 전송 프로그램을 실행시키는 부분
 			strcat(prefix, buf);
 
 			strcat(prefix, " ");
 			strcat(prefix, hp_idx);
 
+			// 최종적으로 system 함수를 통해 프로세스를 시작시킵니다.
 			printf("%s\n", prefix);
 			system(prefix);
 
+			// 새로운 파일을 생성합니다.
 			now = time(0);
 			tstruct = localtime(&now);
 			strftime(buf, sizeof(buf), "%Y-%m-%d_%I-%M-%S-%p.json", tstruct); 
@@ -164,11 +177,13 @@ void *timer_func(void* data)
 			prefix[12] = '\0';
 			printf("%s\n", prefix);
 		}
+		// 적절한 딜레이를 줍니다.
 		sleep(1);
 	}
 
 }
 
+// 파일에 기록하는 함수
 void createJSON(int protocolNum, int length, int srcPort, int dstPort, char* srcIP, char* dstIP, char* timestamp, char* dns)
 
 {
@@ -390,7 +405,7 @@ void packet_analysis(unsigned char *user, const struct pcap_pkthdr *h,
 	}
 }
 
-
+// 새롭게 정의된 시그널 함수 - 쓰레드 정상 종료, 파일 처리 등 뒷처리를 합니다.
 void sig_int(int sig)
 {
     pcap_close(pd);
@@ -404,6 +419,7 @@ void sig_int(int sig)
     exit(0);
 }
 
+/* This is from sample code */
 void usage(void)
 {
     fprintf(stdout," Usage : noh_pa filter_rule [-pch]\n");
@@ -413,6 +429,7 @@ void usage(void)
     fprintf(stdout,"         -r  :  잡은 패킷을 생으로 찍는다.\n");
     fprintf(stdout,"         -h  :  사용법\n");
 }
+
 
 int main(int argc, char *argv[])
 {
@@ -455,6 +472,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	
+	// sample 코드가 제공하는 인풋 옵션입니다.
 	while( (c = getopt(argc, argv,"c:pher")) != -1) {
 		switch(c) {
 			case 'p' :
@@ -480,12 +498,14 @@ int main(int argc, char *argv[])
 		}
 	}           
 	
+	// 모든 NIC를 찾습니다.
 	if (pcap_findalldevs(&alldevs, ebuf) == -1)
 	{
 		fprintf(stderr, "Error in pcap_findalldevs: %s\n", ebuf);
 		return -1;
 	}
 
+	// 찾은 NIC의 정보를 출력
 	index = 0;
 	for (d = alldevs; d; d = d->next)
 	{
@@ -501,18 +521,21 @@ int main(int argc, char *argv[])
 		}
 	}
 	
+	// 예외처리
 	if (index == 0)
 	{
 		fprintf(stderr, "No interfaces found! Exiting.\n");
 		return -1;
 	}
 
+	// 사용자에게 NIC 선택을 요구
 	printf("Enter the interface number you would like to sniff : ");
 	scanf("%d", &inum);
 
-
+	// 구조체에서 사용자가 선택한 NIC까지 루프로 찾아갑니다.
 	for (d = alldevs, index = 0; index < inum - 1; d = d->next, index++);
 
+	// NIC에 pcap sniffer를 할당합니다.
    	pd = pcap_open_live(d->name, snaplen, PROMISCUOUS, 1000, ebuf);
 	if(pd == NULL) {
 		perror(ebuf);          
@@ -521,6 +544,7 @@ int main(int argc, char *argv[])
 
 	fprintf(stdout, "device = %s\n", d->name);
 
+	// 지정된 NIC의 정보를 불러오는 함수들입니다.
 	i = pcap_snapshot(pd);
 	if(snaplen < i) {
 		perror(ebuf);                            
@@ -536,29 +560,36 @@ int main(int argc, char *argv[])
 	
 	fflush(stderr);
 	
+	// 이더넷 타입을 판단하는 함수를 호출한 후 그에 맞는 프린터를 할당
 	printer = lookup_printer(pcap_datalink(pd));
 	pcap_userdata = 0;
 
+	// 저장되는 로그 파일의 이름은 시작시간으로 기록합니다.
 	now = time(0);
 	tstruct = localtime(&now);
 	strftime(buf, sizeof(buf), "%Y-%m-%d_%I-%M-%S-%p.json", tstruct); 
 
+	// 파일을 생성하고
 	temp = fopen(buf, "w");
 	fprintf(temp, "[");
 
+	// 타이머를 작동시키고
 	tid = pthread_create(&timer_therad, NULL, timer_func, NULL);
-	tid2 = pthread_create(&signal_thread, NULL, signal_func, NULL);
+	// Deprecated
+	// tid2 = pthread_create(&signal_thread, NULL, signal_func, NULL);
     if (tid < 0)
     {
         perror("thread create error : ");
         exit(0);
     }
+	/* Deprecated
     if (tid2 < 0)
     {
         perror("thread create error : ");
         exit(0);
     }
-
+	*/
+	// 스니핑 루프시작
 	if(pcap_loop(pd, packetcnt, printer, pcap_userdata) < 0) {
 		perror("pcap_loop error");
 		exit(-1);

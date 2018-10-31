@@ -26,10 +26,12 @@ int main(int argc, char *argv[])
         {
             break;
         }
+        // 적절한 딜레이 적용
         usleep(1000);
     }
 }
 
+// input parameter로 전달된 파일이름으로 해당 파일을 s3로 업로드합니다.
 int upload(char *argv[])
 {
     // aws sdk 초기화
