@@ -147,7 +147,7 @@ void *timer_func(void* data)
 		// 시간을 잽시다.
 		end = time(0);
 		// 타이머 작동
-		if(end - start > 20)
+		if(end - start > 5)
 		{
 			printf("Timer Activated\n");
 			// 동기화
